@@ -1,0 +1,173 @@
+# ============================================
+# utils.py — shared loader + cleaning functions
+# For data mining / ARIMAX / forecasting projects
+# ============================================
+
+import pandas as pd
+import numpy as np
+
+
+# ----------------------------------------------------
+# 1. FRED-style loader (DATE + value)
+# ----------------------------------------------------
+def load_fred(path, value_name="value"):
+    """
+    Load FRED-style time series:
+    Columns usually like: DATE, PPIACO or DATE, CPIAUCSL
+    """
+    df = pd.read_csv(path)
+
+    # Standardize column names
+    df.columns = [c.lower() for c in df.columns]
+
+    # Identify date column
+    if "date" not in df.columns:
+        raise ValueError(f"No DATE column found in {path}")
+
+    # If dataset has 2 columns: date + value
+    value_col = [col for col in df.columns if col != "date"][0]
+
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.rename(columns={value_col: value_name})
+
+    df = df.set_index("date").sort_index()
+    return df[[value_name]]
+
+
+# ----------------------------------------------------
+# 2. Monthly wide → long → quarterly converter
+# (Year, Jan, Feb, Mar, ...)
+# ----------------------------------------------------
+def monthly_wide_to_quarterly(path, value_name="value"):
+    """
+    Converts a typical BLS/BEA wide file into long format, then quarterly.
+    """
+
+    df = pd.read_csv(path)
+
+    # Melt wide → long
+    df_long = df.melt(id_vars="Year", var_name="Month", value_name=value_name)
+
+    # Clean blanks
+    df_long[value_name] = pd.to_numeric(df_long[value_name], errors="coerce")
+    df_long = df_long.dropna(subset=[value_name])
+
+    # Convert month abbreviations → number
+    df_long["Month"] = pd.to_datetime(df_long["Month"], format="%b").dt.month
+
+    # Build date column
+    df_long["date"] = pd.to_datetime(
+        df_long[["Year", "Month"]].assign(day=1)
+    )
+
+    df_long = df_long.set_index("date").sort_index()
+
+    # Convert monthly → quarterly mean
+    quarterly = df_long[[value_name]].resample("Q").mean()
+
+    return quarterly
+
+
+# ----------------------------------------------------
+# 3. Already-tidy CSV loader (has 'date' column)
+# ----------------------------------------------------
+def load_simple_series(path, value_name="value"):
+    """
+    Loads files where there is already a single date column and a single value column.
+    """
+    df = pd.read_csv(path)
+
+    if "date" not in df.columns:
+        raise ValueError(f"Expected a date column in: {path}")
+
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.set_index("date").sort_index()
+
+    # Identify value column
+    value_cols = [c for c in df.columns if c != "date"]
+    if len(value_cols) != 1:
+        raise ValueError("Cannot determine value column automatically.")
+
+    df = df.rename(columns={value_cols[0]: value_name})
+
+    return df[[value_name]]
+
+
+# ----------------------------------------------------
+# 4. Universal loader — auto-detects file type
+# ----------------------------------------------------
+def load_series(path, value_name="value", freq="auto"):
+    """
+    Automatically detects which loader to use.
+    - FRED format (DATE + 1 value)
+    - Wide monthly format (Year + months)
+    - Simple tidy series (date + value)
+
+    freq = "auto" | "monthly" | "quarterly"
+    """
+
+    head = pd.read_csv(path, nrows=5)
+    cols = head.columns
+
+    # FRED: DATE + Something
+    if "DATE" in cols or "date" in cols:
+        return load_fred(path, value_name)
+
+    # WIDE monthly: Year + Jan, Feb, Mar...
+    if "Year" in cols and any(m in cols for m in ["Jan", "Feb", "Mar"]):
+        if freq == "quarterly":
+            return monthly_wide_to_quarterly(path, value_name)
+        else:
+            # Return monthly instead of quarterly
+            df_q = monthly_wide_to_quarterly(path, value_name)
+            return df_q.resample("M").pad()
+
+    # Already tidy: date + value
+    if "date" in cols:
+        return load_simple_series(path, value_name)
+
+    raise ValueError(f"Cannot detect file type for: {path}")
+
+
+# ----------------------------------------------------
+# 5. Common transformations for macro models
+# ----------------------------------------------------
+def pct_change(df, periods=1):
+    """Percent change helper with clean column handling."""
+    name = df.columns[0] + "_pct"
+    return df.pct_change(periods=periods).rename(columns={df.columns[0]: name})
+
+
+def log_diff(df, periods=1):
+    """Log difference (good for ARIMA regressors)."""
+    col = df.columns[0]
+    return np.log(df[col]).diff(periods=periods).to_frame(col + "_logdiff")
+
+
+def to_quarterly(df):
+    """Force quarterly frequency."""
+    return df.resample("Q").mean()
+
+
+def to_monthly(df):
+    """Force monthly frequency (forward-fill)."""
+    return df.resample("M").pad()
+
+
+# ----------------------------------------------------
+# 6. Combined loader for ARIMAX data bundles
+# ----------------------------------------------------
+def load_for_arimax(path, value_name="value"):
+    """
+    Automatically loads → monthly → logdiff → quarterly (typical ARIMAX cleaning)
+    """
+    raw = load_series(path, value_name=value_name)
+
+    # Convert to monthly/quarterly consistency
+    monthly = to_monthly(raw)
+    q = to_quarterly(monthly)
+
+    # Stationary transform
+    stationary = log_diff(q)
+
+    return q, stationary
