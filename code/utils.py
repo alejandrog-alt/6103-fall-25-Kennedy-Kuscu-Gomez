@@ -281,3 +281,75 @@ def read_monthly_flow_to_quarterly_sum(path, value_name="value"):
     return df_q[["date", value_name]]
 
 
+def read_monthly_level_to_quarterly_mean(path, value_name="value"):
+    """
+    For tidy MONTHLY level/index series with:
+        - observation_date  or  date
+        - one numeric value column
+
+    Returns quarterly MEAN (QE).
+    Good for INDPRO, CPI-like indices, utilization, etc.
+    """
+    import pandas as pd
+
+    df = pd.read_csv(path)
+    df.columns = df.columns.str.lower()
+
+    date_col = "observation_date" if "observation_date" in df.columns else "date"
+    if date_col not in df.columns:
+        raise ValueError(f"No observation_date/date column found in {path}")
+
+    value_cols = [c for c in df.columns if c != date_col]
+    if len(value_cols) != 1:
+        raise ValueError("Cannot auto-detect value column.")
+    raw_col = value_cols[0]
+
+    df["date"] = pd.to_datetime(df[date_col], errors="coerce")
+    df[raw_col] = pd.to_numeric(df[raw_col], errors="coerce")
+    df = df.dropna(subset=[raw_col])
+    df = df.set_index("date").sort_index()
+
+    df_q = df[raw_col].resample("QE").mean().reset_index()
+    df_q = df_q.rename(columns={raw_col: value_name})
+
+    return df_q[["date", value_name]]
+
+
+def read_census_period_value_excel_to_quarterly_sum(path, sheet_name="CIDR",
+                                                    skiprows=7, value_name="value"):
+    """
+    For Census XLSX files with:
+        - header row: Period, Value
+        - monthly data like 'Jan-1959', 591
+
+    Returns quarterly SUM (QE).
+    Good for:
+      - New Residential Construction (NRC.xlsx)
+      - New Home Sales (SeriesReport-*.xlsx)
+    """
+    import pandas as pd
+
+    df = pd.read_excel(path, sheet_name=sheet_name, skiprows=skiprows)
+
+    # Fix column names
+    df.columns = [c.strip() for c in df.columns]
+
+    # Validate columns
+    if "Period" not in df.columns or "Value" not in df.columns:
+        raise ValueError(f"Expected 'Period' and 'Value' columns. Found: {df.columns}")
+
+    df = df.rename(columns={"Period": "period", "Value": value_name})
+
+    # Parse date
+    df["date"] = pd.to_datetime(df["period"], format="%b-%Y", errors="coerce")
+
+    # Clean numeric
+    df[value_name] = pd.to_numeric(df[value_name], errors="coerce")
+
+    df = df.dropna(subset=["date", value_name])
+    df = df.set_index("date").sort_index()
+
+    # Quarterly SUM (flow variable)
+    df_q = df[value_name].resample("QE").sum().reset_index()
+
+    return df_q[["date", value_name]]
