@@ -242,4 +242,42 @@ def read_wide_monthly_to_quarterly(path, value_name="value"):
 
     return quarterly
 
+def read_monthly_flow_to_quarterly_sum(path, value_name="value"):
+
+    df = pd.read_csv(path)
+
+    # Normalize column names
+    df.columns = df.columns.str.lower()
+
+    # Auto-detect date column
+    date_col = "observation_date" if "observation_date" in df.columns else "date"
+    if date_col not in df.columns:
+        raise ValueError(f"No date column in {path}")
+
+    # Auto-detect value column
+    value_cols = [c for c in df.columns if c not in [date_col]]
+    if len(value_cols) != 1:
+        raise ValueError("Cannot auto-detect value column.")
+    raw_value_col = value_cols[0]
+
+    # Parse date
+    df["date"] = pd.to_datetime(df[date_col], errors="coerce")
+
+    # Clean numeric values
+    df[raw_value_col] = pd.to_numeric(df[raw_value_col], errors="coerce")
+
+    # Remove missing
+    df = df.dropna(subset=[raw_value_col])
+
+    # Index and sort
+    df = df.set_index("date").sort_index()
+
+    # Monthly → Quarterly SUM (because these are flow variables)
+    df_q = df[raw_value_col].resample("Q").sum().reset_index()
+
+    # Rename
+    df_q = df_q.rename(columns={raw_value_col: value_name})
+
+    return df_q[["date", value_name]]
+
 
