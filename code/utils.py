@@ -33,23 +33,27 @@ def load_fred(path, value_name="value"):
     df = df.set_index("DATE").sort_index()
     return df[[value_name]]
 
+import pandas as pd
+
 def read_fred_monthly_to_quarterly_mean(path, value_col=None, dropna=True):
 
     df = pd.read_csv(path)
 
-    # Normalize column names to lowercase
+    # Normalize column names
     df.columns = df.columns.str.lower()
 
-    # Check date column
+    # Ensure date column exists
     if "date" not in df.columns:
         raise ValueError(f"No 'date' column found in {path}")
 
     # Auto-detect value column
     if value_col is None:
-        # first non-date column
-        value_col = [c for c in df.columns if c != "date"][0]
+        non_date_cols = [c for c in df.columns if c != "date"]
+        if not non_date_cols:
+            raise ValueError(f"No value column found in {path}")
+        value_col = non_date_cols[0]
 
-    # Convert types
+    # Convert to proper types
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df[value_col] = pd.to_numeric(df[value_col], errors="coerce")
 
@@ -61,7 +65,7 @@ def read_fred_monthly_to_quarterly_mean(path, value_col=None, dropna=True):
     df = df.set_index("date").sort_index()
 
     # Monthly → Quarterly mean
-    quarterly = df[value_col].resample("Q").mean().to_frame()
+    quarterly = df[value_col].resample("Q").mean().reset_index()
 
     return quarterly
 
@@ -205,3 +209,38 @@ def load_for_arimax(path, value_name="value"):
     stationary = log_diff(q)
 
     return q, stationary
+
+import pandas as pd
+import pandas as pd
+
+def read_wide_monthly_to_quarterly(path, value_name):
+    df = pd.read_csv(path)
+
+    # Melt wide to long (Year, Month → value)
+    df_long = df.melt(id_vars="Year", var_name="Month", value_name=value_name)
+
+    # Replace blanks with NaN
+    df_long[value_name] = df_long[value_name].replace(" ", pd.NA)
+
+    # Convert value to numeric
+    df_long[value_name] = pd.to_numeric(df_long[value_name], errors="coerce")
+
+    # Drop rows without data
+    df_long = df_long.dropna(subset=[value_name])
+
+    # Convert month name → month number
+    df_long["Month"] = pd.to_datetime(df_long["Month"], format="%b").dt.month
+
+    # Build date column
+    df_long["date"] = pd.to_datetime(
+        df_long[["Year", "Month"]].assign(day=1)
+    )
+
+    df_long = df_long.set_index("date").sort_index()
+
+    # Quarterly mean
+    quarterly = df_long[[value_name]].resample("Q").mean().reset_index()
+
+    return quarterly
+
+
