@@ -27,11 +27,45 @@ def load_fred(path, value_name="value"):
     # If dataset has 2 columns: date + value
     value_col = [col for col in df.columns if col != "date"][0]
 
-    df["date"] = pd.to_datetime(df["date"])
+    df["DATE"] = pd.to_datetime(df["DATE"])
     df = df.rename(columns={value_col: value_name})
 
-    df = df.set_index("date").sort_index()
+    df = df.set_index("DATE").sort_index()
     return df[[value_name]]
+
+def read_fred_monthly_to_quarterly_mean(path, value_col=None, dropna=True):
+
+    df = pd.read_csv(path)
+
+    # Normalize column names to lowercase
+    df.columns = df.columns.str.lower()
+
+    # Check date column
+    if "date" not in df.columns:
+        raise ValueError(f"No 'date' column found in {path}")
+
+    # Auto-detect value column
+    if value_col is None:
+        # first non-date column
+        value_col = [c for c in df.columns if c != "date"][0]
+
+    # Convert types
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df[value_col] = pd.to_numeric(df[value_col], errors="coerce")
+
+    # Drop missing values if wanted
+    if dropna:
+        df = df.dropna(subset=[value_col])
+
+    # Set index
+    df = df.set_index("date").sort_index()
+
+    # Monthly → Quarterly mean
+    quarterly = df[value_col].resample("Q").mean().to_frame()
+
+    return quarterly
+
+
 
 
 # ----------------------------------------------------
