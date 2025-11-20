@@ -210,35 +210,34 @@ def load_for_arimax(path, value_name="value"):
 
     return q, stationary
 
-import pandas as pd
-import pandas as pd
 
-def read_wide_monthly_to_quarterly(path, value_name):
+# ----------------------------------------------------
+# Clean wide → long → quarterly converter
+# (Year, Jan, Feb, ..., Dec)
+# ----------------------------------------------------
+def read_wide_monthly_to_quarterly(path, value_name="value"):
+    import pandas as pd
+
     df = pd.read_csv(path)
 
     # Melt wide to long (Year, Month → value)
     df_long = df.melt(id_vars="Year", var_name="Month", value_name=value_name)
 
-    # Replace blanks with NaN
-    df_long[value_name] = df_long[value_name].replace(" ", pd.NA)
-
-    # Convert value to numeric
+    # Clean blanks
     df_long[value_name] = pd.to_numeric(df_long[value_name], errors="coerce")
-
-    # Drop rows without data
     df_long = df_long.dropna(subset=[value_name])
 
-    # Convert month name → month number
+    # Convert month abbreviations → month number
     df_long["Month"] = pd.to_datetime(df_long["Month"], format="%b").dt.month
 
-    # Build date column
+    # Build date index
     df_long["date"] = pd.to_datetime(
         df_long[["Year", "Month"]].assign(day=1)
     )
 
     df_long = df_long.set_index("date").sort_index()
 
-    # Quarterly mean
+    # Convert monthly → quarterly mean
     quarterly = df_long[[value_name]].resample("Q").mean().reset_index()
 
     return quarterly
