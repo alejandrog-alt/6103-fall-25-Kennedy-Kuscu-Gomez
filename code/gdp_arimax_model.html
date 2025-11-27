@@ -88,11 +88,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>GDP is defined by the national accounts identity: GDP = C + I + G + NX</p>
 <p>(This formula comes from the U.S. Bureau of Economic Analysis and standard macro textbooks such as Mankiw, Macroeconomics.)</p>
 <p>To keep the model simple and meaningful, we select indicators that represent the most important and most cyclical parts of GDP:</p>
-<p>Industrial Production (INDPRO) -&gt; production &amp; investment (Used in classic business cycle research; Stock &amp; Watson, 1999). Retail Sales (RSXFS) -&gt; consumption (Consumption drives most of GDP; Giannone, Reichlin &amp; Small, 2008). Initial Unemployment Claims (ICSA) -&gt; labor income (Job losses affect household spending; Blanchard &amp; Katz, 1992).</p>
+<p>Industrial Production (INDPRO) -&gt; production &amp; investment (Used in classic business cycle research; Stock &amp; Watson, 1999).<br> Retail Sales (RSXFS) -&gt; consumption (Consumption drives most of GDP; Giannone, Reichlin &amp; Small, 2008).<br> Initial Unemployment Claims (ICSA) -&gt; labor income (Job losses affect household spending; Blanchard &amp; Katz, 1992).<br></p>
 <p>These three indicators capture production, consumption, and labor-market conditions — the main engines behind short-run GDP movements. They are also high-frequency, timely, and not highly correlated, making them ideal for a simple ARIMAX model.</p>
 <p><strong>Workflow Overview</strong></p>
-<p>-Download data from FRED -Convert everything to quarterly data -Compute growth rates (log-differences) -Check correlations and VIF -Fit Naive, ARIMA(1,1,1), and ARIMAX(1,1,1) -Compare errors (MAE) -Produce next-quarter GDP forecast -Plot results</p>
-<div id="2f7f1c94" class="cell" data-execution_count="11">
+<p>-Download data from FRED. <br> -Convert everything to quarterly data.<br> -Compute growth rates (log-differences).<br> -Check correlations and VIF.<br> -Fit Naive, ARIMA(1,1,1), and ARIMAX(1,1,1).<br> -Compare errors (MAE).<br> -Produce next-quarter GDP forecast.<br> -Plot results.</p>
+<div id="2f7f1c94" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> statsmodels.api <span class="im">as</span> sm</span>
@@ -417,7 +417,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 Dep. Variable:             gdp_growth   No. Observations:                  133
 Model:               SARIMAX(1, 1, 1)   Log Likelihood                -202.195
 Date:                Wed, 26 Nov 2025   AIC                            410.391
-Time:                        20:48:16   BIC                            418.993
+Time:                        21:02:48   BIC                            418.993
 Sample:                    06-30-1992   HQIC                           413.886
                          - 06-30-2025                                         
 Covariance Type:                  opg                                         
@@ -443,7 +443,7 @@ Warnings:
 Dep. Variable:             gdp_growth   No. Observations:                  133
 Model:               SARIMAX(1, 1, 1)   Log Likelihood                 -94.237
 Date:                Wed, 26 Nov 2025   AIC                            200.474
-Time:                        20:48:16   BIC                            217.679
+Time:                        21:02:48   BIC                            217.679
 Sample:                    06-30-1992   HQIC                           207.465
                          - 06-30-2025                                         
 Covariance Type:                  opg                                         
